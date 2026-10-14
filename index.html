@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מעקב מניות 24/7</title>
+    <!-- טעינת ספרית Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Heebo', sans-serif;
+        }
+        body {
+            background-color: #0B0E14;
+            color: #FFFFFF;
+            padding: 20px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+            background-color: #131722;
+            padding: 16px;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        h1 {
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .card {
+            background-color: #131722;
+            border-radius: 16px;
+            padding: 16px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .stock-info h3 {
+            font-size: 18px;
+            color: #FFFFFF;
+        }
+        .stock-info p {
+            font-size: 14px;
+            color: #9E9E9E;
+            margin-top: 4px;
+        }
+        .delete-btn {
+            background: none;
+            border: none;
+            color: #FF5252;
+            cursor: pointer;
+            font-size: 20px;
+            padding: 8px;
+        }
+        .form-container {
+            background-color: #131722;
+            padding: 20px;
+            border-radius: 16px;
+            margin-bottom: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 12px;
+            background-color: #1E222D;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            color: #FFFFFF;
+            font-size: 16px;
+        }
+        input:focus {
+            outline: none;
+            border-color: #2962FF;
+        }
+        button.add-btn {
+            width: 100%;
+            background-color: #2962FF;
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button.add-btn:hover {
+            background-color: #1e4bd8;
+        }
+        .empty-state {
+            text-align: center;
+            color: #9E9E9E;
+            margin-top: 40px;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>📈 מעקב מניות 24/7</h1>
+    </header>
+
+    <!-- טופס הוספת מניה -->
+    <div class="form-container">
+        <input type="text" id="tickerInput" placeholder="טיקר (למשל: AAPL, NVDA)" autocomplete="off">
+        <input type="number" id="priceInput" placeholder="מחיר יעד ($)" step="any">
+        <button class="add-btn" id="addBtn">הוסף למעקב</button>
+    </div>
+
+    <!-- רשימת המניות -->
+    <div id="stockList">
+        <div class="empty-state">טוען נתונים...</div>
+    </div>
+
+<script>
+    // 🔑 הכנס כאן את פרטי ה-Supabase שלך (רק כתובת בסיסית, בלי סלאש בסוף)
+    const SUPABASE_URL = 'https://fxtpddqsquaxycimjwaz.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_cA18kOpYvWdtKi8Pylhc6A_9VuhwFT6';
+
+    // אתחול נכון של הלקוח לפי הגרסה החדשה
+    const { createClient } = supabase;
+    const _supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    async function fetchStocks() {
+        const listContainer = document.getElementById('stockList');
+        const { data, error } = await _supabase.from('watchlist').select('*').order('id', { ascending: false });
+
+        if (error) {
+            listContainer.innerHTML = `<div class="empty-state">שגיאה בטעינת הנתונים: ${error.message}</div>`;
+            return;
+        }
+
+        if (!data || data.length === 0) {
+            listContainer.innerHTML = `<div class="empty-state">אין מניות במעקב כרגע</div>`;
+            return;
+        }
+
+        let html = '';
+        data.forEach(stock => {
+            html += `
+                <div class="card">
+                    <div class="stock-info">
+                        <h3>${stock.ticker}</h3>
+                        <p>מחיר יעד: $${stock.target_price}</p>
+                    </div>
+                    <button class="delete-btn" onclick="deleteStock(${stock.id})">🗑️</button>
+                </div>
+            `;
+        });
+        listContainer.innerHTML = html;
+    }
+
+    async function addStock() {
+        const ticker = document.getElementById('tickerInput').value.trim().toUpperCase();
+        const target_price = parseFloat(document.getElementById('priceInput').value);
+
+        if (!ticker || isNaN(target_price)) {
+            alert('נא למלא טיקר תקין ומחיר יעד');
+            return;
+        }
+
+        const { error } = await _supabase.from('watchlist').insert([{ ticker, target_price }]);
+
+        if (error) {
+            alert('שגיאה בהוספת המניה: ' + error.message);
+        } else {
+            document.getElementById('tickerInput').value = '';
+            document.getElementById('priceInput').value = '';
+            fetchStocks();
+        }
+    }
+
+    async function deleteStock(id) {
+        const { error } = await _supabase.from('watchlist').delete().eq('id', id);
+        if (!error) {
+            fetchStocks();
+        } else {
+            alert('שגיאה במחיקה: ' + error.message);
+        }
+    }
+
+    // חיבור האזנה לכפתור
+    document.getElementById('addBtn').addEventListener('click', addStock);
+
+    // טעינת הנתונים הראשונית
+    fetchStocks();
+</script>
+</body>
+</html>
